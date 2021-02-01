@@ -205,6 +205,12 @@ def model_resolver(field):
         if callable(cls_field):
             return cls_field(info, **kwargs)
 
+        if field.is_auth_field:
+            if not info.context.user.is_authenticated:
+                return None
+            if not info.context.user.has_active_subscription:
+                return None
+
         # If none of those then just return field
         return cls_field
 
@@ -269,6 +275,7 @@ def load_type_fields():
 
                 type_meta = {"Meta": Meta, "id": graphene.ID(), "name": type_name}
 
+                auth_fields = cls.graphql_auth_fields if hasattr(cls, "graphql_auth_fields") else ()
                 exclude_fields = []
                 base_type_for_exclusion_checks = (
                     base_type if not issubclass(cls, WagtailPage) else WagtailPage
@@ -300,6 +307,8 @@ def load_type_fields():
                         # Remove field from excluded list
                         if field.field_name in exclude_fields:
                             exclude_fields.remove(field.field_name)
+
+                        field.is_auth_field = field.field_name in auth_fields
 
                         # Add a custom resolver for each field
                         methods["resolve_" + field.field_name] = model_resolver(field)
